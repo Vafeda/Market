@@ -20,7 +20,7 @@ CREATE TABLE product (
 	category_id INTEGER,
 	created_at DATE DEFAULT NOW(),
 	FOREIGN KEY (category_id) REFERENCES category(id)
-)
+);
 
 -- Вставляем категории
 INSERT INTO category (name) VALUES

@@ -1,192 +1,29 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	"log"
 	"my_project/database"
+	"my_project/server/handler"
 	"net/http"
-	"strings"
 )
 
 var db *pgx.Conn
 
 var idClient int
 
-func getPerson(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("Method: %s\n", r.Method)
-	fmt.Printf("URL: %s\n", r.URL.Path)
-
-	name := r.URL.Query().Get("name")
-	if name == "" {
-		return
-	}
-
-	fmt.Printf("Name: %s\n", name)
-
-	p := database.GetPersonInfo(name, db)
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(p)
-}
-
-func getProducts(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("Method: %s\n", r.Method)
-	fmt.Printf("URL: %s\n", r.URL.Path)
-
-	category := r.URL.Query().Get("category")
-
-	pr := database.GetProducts(category, db)
-
-	//json, err := json.Marshal(pr)
-	//
-	//if err != nil {
-	//	http.Error(w, err.Error(), http.StatusInternalServerError)
-	//	return
-	//}
-
-	w.Header().Set("Content-Type", "application/json")
-	//w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(pr)
-
-	//w.Write(json)
-}
-
-func getProduct(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("Method: %s\n", r.Method)
-	fmt.Printf("URL: %s\n", r.URL.Path)
-
-	path := r.URL.Path
-	parts := strings.Split(path, "/")
-
-	pr := database.GetProduct(parts[2], db)
-
-	//json, err := json.Marshal(pr)
-	//
-	//if err != nil {
-	//	http.Error(w, err.Error(), http.StatusInternalServerError)
-	//	return
-	//}
-
-	w.Header().Set("Content-Type", "application/json")
-	////w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(pr)
-
-	//w.Write(json)
-}
-
-func createUser(w http.ResponseWriter, r *http.Request) {
-
-	pr := database.Person{}
-
-	if err := json.NewDecoder(r.Body).Decode(&pr); err != nil {
-		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	fmt.Println(pr)
-	err := database.CreateUser(&pr, db)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-	//json, err := json.Marshal(pr)
-	//
-	//if err != nil {
-	//	http.Error(w, err.Error(), http.StatusInternalServerError)
-	//	return
-	//}
-
-	//w.Write(json)
-	http.Redirect(w, r, "/login", http.StatusFound)
-}
-
-func checkUser(w http.ResponseWriter, r *http.Request) {
-	pr := database.Person{}
-
-	if err := json.NewDecoder(r.Body).Decode(&pr); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Invalid JSON: " + err.Error(),
-		})
-		return
-	}
-
-	acces, err := database.CheckUser(&pr, db)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Database error: " + err.Error(),
-		})
-		return // ← ДОБАВЬТЕ ЭТОТ return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	if acces {
-		fmt.Println("Доступ разрешен")
-		// УБЕРИТЕ http.Redirect - используйте JSON redirect
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success":  true,
-			"message":  "Login successful",
-			"redirect": "/market", // ← редирект в JSON
-		})
-	} else {
-		fmt.Println("Доступ запрещен")
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Invalid email or password",
-		})
-	}
-}
-
-func updatePerson(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("=== UPDATE PERSON CALLED ===")
-	fmt.Printf("Method: %s, URL: %s\n", r.Method, r.URL.Path)
-
-	pr := database.Person{}
-
-	// Читаем сырое тело для отладки
-	//body, _ := io.ReadAll(r.Body)
-	//fmt.Printf("Raw request body: %s\n", string(body))
-	//
-	//// Сбрасываем Body чтобы можно было декодировать снова
-	//r.Body = io.NopCloser(bytes.NewBuffer(body))
-
-	if err := json.NewDecoder(r.Body).Decode(&pr); err != nil {
-		fmt.Printf("JSON decode error: %v\n", err)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Invalid JSON: " + err.Error(),
-		})
-		return
-	}
-
-	fmt.Printf("Получены данные: ID=%d, Name=%s, Email=%s, Hash=%s\n",
-		pr.Id, pr.Name, pr.Email, pr.Hash)
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"status":  "success",
-		"message": "Данные обновлены",
-	})
-}
-
-func redirect(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "/register", http.StatusFound)
-}
-
 func main() {
 	db = database.Connect()
 	defer database.Close(db)
 
-	http.HandleFunc("GET /person", getPerson)
-	http.HandleFunc("POST /register", createUser)
-	http.HandleFunc("POST /login", checkUser)
-	http.HandleFunc("PUT /person/update", updatePerson)
+	h := handler.NewHandler(db)
+
+	http.HandleFunc("GET /person", h.GetPerson)
+	http.HandleFunc("POST /register", h.CreateUser)
+	http.HandleFunc("POST /login", h.CheckUser)
+	http.HandleFunc("PUT /person/update", h.UpdatePerson)
+	http.HandleFunc("DELETE /person/delete", h.DeletePerson)
 	http.HandleFunc("GET /person/update", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`
 <!DOCTYPE html>
@@ -259,9 +96,9 @@ func main() {
     `))
 	})
 
-	http.HandleFunc("GET /market", getProducts)
-	http.HandleFunc("GET /market/{id}", getProduct)
-	http.HandleFunc("GET /", redirect)
+	http.HandleFunc("GET /market", h.GetProducts)
+	http.HandleFunc("GET /market/{id}", h.GetProduct)
+	http.HandleFunc("GET /", h.Redirect)
 	http.HandleFunc("GET /register", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`
 <h1>Registration Page</h1>
