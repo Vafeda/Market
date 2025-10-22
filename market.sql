@@ -1,8 +1,9 @@
-CREATE TABLE person (
+CREATE TABLE user (
 	id SERIAL PRIMARY KEY,
 	name TEXT NOT NULL,
 	email TEXT NOT NULL,
-	password_hash VARCHAR(50),
+    login TEXT NOT NULL,
+	password_hash VARCHAR(100),
 	created_at DATE DEFAULT NOW()
 );
 
@@ -20,7 +21,7 @@ CREATE TABLE product (
 	category_id INTEGER,
 	created_at DATE DEFAULT NOW(),
 	FOREIGN KEY (category_id) REFERENCES category(id)
-)
+);
 
 -- Вставляем категории
 INSERT INTO category (name) VALUES
@@ -29,13 +30,6 @@ INSERT INTO category (name) VALUES
 ('Наушники'),
 ('Планшеты'),
 ('Умные часы');
-
--- Вставляем пользователей
-INSERT INTO person (name, email, password_hash, created_at) VALUES
-('Иван Петров', 'ivan@mail.ru', 'hash123', NOW()),
-('Мария Сидорова', 'maria@yandex.ru', 'hash456', NOW()),
-('Алексей Козлов', 'alex@google.com', 'hash789', NOW()),
-('Елена Новикова', 'elena@gmail.com', 'hash012', NOW());
 
 -- Вставляем товары
 INSERT INTO product (name, description, price, amount, category_id, created_at) VALUES
